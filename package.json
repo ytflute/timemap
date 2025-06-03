@@ -2,14 +2,14 @@
     "name": "subjective-clock",
     "version": "1.0.0",
     "description": "A subjective world clock map that generates adventure stories based on location and time.",
-    "main": "index.html",
+    "main": "public/index.html",
     "type": "commonjs",
     "scripts": {
       "test": "echo \"Error: no test specified\" && exit 1",
-      "start": "http-server -p 3000",
+      "start": "http-server public -p 3000",
       "dev": "vercel dev",
       "deploy": "vercel deploy --prod",
-      "local": "http-server -p 3000"
+      "local": "http-server public -p 3000"
     },
     "keywords": [
       "map",

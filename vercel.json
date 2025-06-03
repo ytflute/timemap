@@ -6,7 +6,7 @@
       "use": "@vercel/node"
     },
     {
-      "src": "**/*.{html,css,js,json}",
+      "src": "public/**/*",
       "use": "@vercel/static"
     }
   ],
@@ -49,7 +49,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "/$1"
+      "dest": "/public/$1"
     }
   ],
   "env": {
