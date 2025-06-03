@@ -1,4 +1,18 @@
 // /api/config/index.js
+import admin from 'firebase-admin';
+
+// 初始化 Firebase Admin
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL
+    }),
+    storageBucket: `${process.env.FIREBASE_PROJECT_ID}.appspot.com`
+  });
+}
+
 export default function handler(req, res) {
   // 設置 CORS 標頭
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -18,25 +32,11 @@ export default function handler(req, res) {
     return;
   }
 
+  // 返回必要的配置
   const config = {
-    apiKey: process.env.FIREBASE_API_KEY,
-    authDomain: process.env.FIREBASE_AUTH_DOMAIN,
     projectId: process.env.FIREBASE_PROJECT_ID,
-    storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
-    appId: process.env.FIREBASE_APP_ID,
-    measurementId: process.env.FIREBASE_MEASUREMENT_ID
+    storageBucket: `${process.env.FIREBASE_PROJECT_ID}.appspot.com`
   };
-
-  // 檢查必要的配置是否存在
-  const requiredKeys = ['apiKey', 'authDomain', 'projectId', 'storageBucket'];
-  const missingKeys = requiredKeys.filter(key => !config[key]);
-
-  if (missingKeys.length > 0) {
-    console.error('缺少必要的環境變數:', missingKeys);
-    res.status(500).json({ error: '伺服器配置不完整' });
-    return;
-  }
 
   const configScript = `window.firebaseConfig = ${JSON.stringify(config)};`;
   
@@ -45,8 +45,4 @@ export default function handler(req, res) {
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
   res.status(200).send(configScript);
-<<<<<<< HEAD
 } 
-=======
-} 
->>>>>>> 40714b7 (更新文件結構和配置)
