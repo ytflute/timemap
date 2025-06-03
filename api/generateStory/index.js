@@ -161,8 +161,4 @@ export default async function handler(req, res) {
         console.error('生成故事時發生錯誤:', error);
         res.status(500).json({ error: error.message });
     }
-<<<<<<< HEAD
 } 
-=======
-} 
->>>>>>> 40714b7 (更新文件結構和配置)
