@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>甦醒地圖 Wake Up World Map</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
@@ -98,66 +99,68 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
 
-    <!-- 載入 Firebase 配置 -->
-    <script src="/api/config"></script>
-
     <!-- 初始化 Firebase -->
     <script>
-        // 等待配置載入完成
-        function waitForConfig() {
-            return new Promise((resolve, reject) => {
-                if (window.firebaseConfig) {
-                    resolve(window.firebaseConfig);
-                    return;
+        // 從 API 獲取配置
+        async function loadFirebaseConfig() {
+            try {
+                const response = await fetch('/api/config');
+                if (!response.ok) {
+                    throw new Error('無法載入 Firebase 配置');
                 }
-
-                const maxAttempts = 10;
-                let attempts = 0;
-                const interval = setInterval(() => {
-                    if (window.firebaseConfig) {
-                        clearInterval(interval);
-                        resolve(window.firebaseConfig);
-                        return;
-                    }
-                    attempts++;
-                    if (attempts >= maxAttempts) {
-                        clearInterval(interval);
-                        reject(new Error('Firebase 配置載入超時'));
-                    }
-                }, 500);
-            });
+                const config = await response.json();
+                return config;
+            } catch (error) {
+                console.error('載入配置失敗:', error);
+                throw error;
+            }
         }
 
         // 初始化 Firebase
-        waitForConfig().then(firebaseConfig => {
-            window.firebaseSDK = {
-                initializeApp: firebase.initializeApp,
-                getAuth: firebase.auth,
-                signInAnonymously: firebase.auth().signInAnonymously,
-                onAuthStateChanged: firebase.auth().onAuthStateChanged,
-                signInWithCustomToken: firebase.auth().signInWithCustomToken,
-                getFirestore: firebase.firestore,
-                collection: firebase.firestore().collection,
-                addDoc: (ref, data) => ref.add(data),
-                query: firebase.firestore().query,
-                where: firebase.firestore().where,
-                getDocs: (q) => q.get(),
-                orderBy: firebase.firestore().orderBy,
-                serverTimestamp: firebase.firestore.FieldValue.serverTimestamp,
-                doc: firebase.firestore().doc,
-                setDoc: (ref, data) => ref.set(data),
-                getDoc: (ref) => ref.get(),
-                limit: firebase.firestore().limit,
-                setLogLevel: firebase.setLogLevel
-            };
-            
-            // 觸發自定義事件，通知 script.js Firebase 已準備就緒
-            const event = new CustomEvent('firebaseReady', { detail: firebaseConfig });
-            window.dispatchEvent(event);
-        }).catch(error => {
-            console.error('Firebase 初始化失敗:', error);
-            alert('Firebase 初始化失敗，請重新載入頁面。');
-        });
+        async function initializeFirebase() {
+            try {
+                const firebaseConfig = await loadFirebaseConfig();
+                
+                // 初始化 Firebase
+                const app = firebase.initializeApp(firebaseConfig);
+                
+                // 設定 window.firebaseSDK
+                window.firebaseSDK = {
+                    initializeApp: firebase.initializeApp,
+                    getAuth: firebase.auth,
+                    signInAnonymously: firebase.auth().signInAnonymously,
+                    onAuthStateChanged: firebase.auth().onAuthStateChanged,
+                    signInWithCustomToken: firebase.auth().signInWithCustomToken,
+                    getFirestore: firebase.firestore,
+                    collection: firebase.firestore().collection,
+                    addDoc: (ref, data) => ref.add(data),
+                    query: firebase.firestore().query,
+                    where: firebase.firestore().where,
+                    getDocs: (q) => q.get(),
+                    orderBy: firebase.firestore().orderBy,
+                    serverTimestamp: firebase.firestore.FieldValue.serverTimestamp,
+                    doc: firebase.firestore().doc,
+                    setDoc: (ref, data) => ref.set(data),
+                    getDoc: (ref) => ref.get(),
+                    limit: firebase.firestore().limit,
+                    setLogLevel: firebase.setLogLevel,
+                    getStorage: firebase.storage,
+                    ref: firebase.storage().ref,
+                    uploadBytes: firebase.storage().uploadBytes,
+                    getDownloadURL: firebase.storage().getDownloadURL
+                };
+                
+                // 觸發自定義事件，通知 script.js Firebase 已準備就緒
+                const event = new CustomEvent('firebaseReady', { detail: firebaseConfig });
+                window.dispatchEvent(event);
+            } catch (error) {
+                console.error('Firebase 初始化失敗:', error);
+                alert('Firebase 初始化失敗，請重新載入頁面。');
+            }
+        }
+
+        // 開始初始化
+        initializeFirebase();
     </script>
 
     <!-- Leaflet -->
