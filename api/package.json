@@ -2,7 +2,7 @@
   "name": "timemap-api",
   "version": "1.0.0",
   "private": true,
-  "type": "commonjs",
+  "type": "module",
   "engines": {
     "node": "18.x"
   },
