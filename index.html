@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>甦醒地圖 Wake Up World Map</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+     crossorigin=""/>
+</head>
+<body>
+    <div class="container">
+        <h1>甦醒地圖 Wake Up World Map</h1>
+
+        <div class="user-info-section">
+            <div class="input-group">
+                <label for="userName">顯示名稱：</label>
+                <input type="text" id="userName" placeholder="請輸入您的顯示名稱">
+                <button id="setUserNameButton">設定/更新名稱</button>
+            </div>
+            <div class="input-group">
+                <label for="groupName">組別名稱：</label>
+                <input type="text" id="groupName" placeholder="請輸入組別名稱（選填）">
+            </div>
+            <div class="current-user-info">
+                <span>目前使用者：</span>
+                <span id="currentUserId">未設定</span>
+                <span id="currentUserDisplayName" style="display: none;"></span>
+                <span id="currentGroupName" style="margin-left: 10px; color: #666;"></span>
+            </div>
+        </div>
+
+        <div class="tab-container">
+            <button id="tabButton-ClockTab" class="tab-button active" data-tab="ClockTab">今日甦醒</button>
+            <button id="tabButton-HistoryTab" class="tab-button" data-tab="HistoryTab">甦醒軌跡</button>
+            <button id="tabButton-GlobalTodayMapTab" class="tab-button" data-tab="GlobalTodayMapTab">眾人地圖</button>
+        </div>
+
+        <div id="ClockTab" class="tab-content active">
+            <p>按下按鈕，看看今天的你是在地球上的哪個角落甦醒並開始這一天？</p>
+            <button id="findCityButton" disabled>開始這一天</button>
+            
+            <div id="result">
+                <p id="resultText"></p>
+                <div id="flagContainer"> 
+                    <img id="countryFlag" src="" alt="國家國旗" style="display:none;"/>
+                </div>
+                <div id="mapContainer"> </div>
+                <small id="debugInfo"></small>
+            </div>
+        </div>
+
+        <div id="HistoryTab" class="tab-content">
+            <p>記錄關於你每日於地球上的哪一個角落起床。</p>
+            <button id="refreshHistoryButton">刷新記錄</button>
+            <ul id="historyList"></ul>
+            <div id="historyMapContainer"> <p>地圖軌跡功能已移除。</p>
+            </div>
+            <small id="historyDebugInfo"></small>
+        </div>
+
+        <div id="historyLogModal" class="modal" style="display:none;"> <div class="modal-dialog">                                   <div class="modal-content-wrapper">                        <div class="modal-header">
+            <h2 id="modalTitle">甦醒日誌詳情</h2>               <span id="historyLogModalClose" class="modal-close-button">&times;</span> </div>
+            <div id="historyLogModalContent" class="modal-body">
+                </div>
+            <div class="modal-footer">
+                <button id="closeModalFooterButton" class="modal-button-secondary">關閉</button> </div>
+            </div>
+          </div>
+        </div>
+
+        
+        <div id="GlobalTodayMapTab" class="tab-content">
+            <p>看看今天大家都在地球的哪些角落開啟新的一天！</p>
+            <div class="filter-container">
+                <div class="date-picker-container">
+                    <label for="globalDate">選擇日期:</label>
+                    <input type="date" id="globalDate">
+                </div>
+                <div class="group-filter-container">
+                    <label for="groupFilter">選擇組別:</label>
+                    <select id="groupFilter">
+                        <option value="all">所有人</option>
+                    </select>
+                </div>
+                <button id="refreshGlobalMapButton">查詢地圖</button>
+            </div>
+            <div id="globalTodayMapContainer">
+            </div>
+            <small id="globalTodayDebugInfo"></small>
+        </div>
+    </div>
+
+    <!-- 1. 首先載入 Firebase 配置 -->
+    <script src="/api/config"></script>
+
+    <!-- 2. 載入 Firebase SDK 並初始化 -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, where, getDocs, orderBy, serverTimestamp, doc, setDoc, getDoc, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"; 
+
+        // 等待配置載入完成
+        function waitForConfig() {
+            return new Promise((resolve, reject) => {
+                if (window.firebaseConfig) {
+                    resolve(window.firebaseConfig);
+                    return;
+                }
+
+                const maxAttempts = 10;
+                let attempts = 0;
+                const interval = setInterval(() => {
+                    if (window.firebaseConfig) {
+                        clearInterval(interval);
+                        resolve(window.firebaseConfig);
+                        return;
+                    }
+                    attempts++;
+                    if (attempts >= maxAttempts) {
+                        clearInterval(interval);
+                        reject(new Error('Firebase 配置載入超時'));
+                    }
+                }, 500);
+            });
+        }
+
+        // 初始化 Firebase
+        waitForConfig().then(firebaseConfig => {
+        window.firebaseSDK = {
+            initializeApp,
+            getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken,
+            getFirestore, collection, addDoc, query, where, getDocs, orderBy, serverTimestamp, doc, setDoc, getDoc, limit,
+            setLogLevel
+        };
+            
+            // 觸發自定義事件，通知 script.js Firebase 已準備就緒
+            const event = new CustomEvent('firebaseReady', { detail: firebaseConfig });
+            window.dispatchEvent(event);
+        }).catch(error => {
+            console.error('Firebase 初始化失敗:', error);
+            alert('Firebase 初始化失敗，請重新載入頁面。');
+        });
+    </script>
+
+    <!-- 3. 載入 Leaflet -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+     crossorigin=""></script>
+
+    <!-- 4. 最後載入主應用程式腳本 -->
+    <script src="script.js"></script>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
+</body>
+</html>

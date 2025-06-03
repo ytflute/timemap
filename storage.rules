@@ -1,0 +1,30 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // 基本規則：預設拒絕所有訪問
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    // 早餐圖片規則
+    match /breakfast_images/{imageFile} {
+      // 允許所有人讀取
+      allow read: if true;
+      
+      // 只允許通過驗證的用戶上傳
+      allow write: if request.auth != null;
+      
+      // 限制檔案大小和類型
+      allow create: if request.auth != null
+                   && request.resource.size < 5 * 1024 * 1024  // 5MB 限制
+                   && request.resource.contentType.matches('image/.*');
+    }
+
+    // 其他文件規則
+    match /{otherPaths=**} {
+      // 預設拒絕訪問
+      allow read, write: if false;
+    }
+  }
+} 
