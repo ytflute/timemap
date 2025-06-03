@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>甦醒地圖 Wake Up World Map</title>
-    <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
@@ -15,15 +14,17 @@
         <h1>甦醒地圖 Wake Up World Map</h1>
 
         <div class="user-info-section">
-            <div class="input-group">
-                <label for="userName">顯示名稱：</label>
-                <input type="text" id="userName" placeholder="請輸入您的顯示名稱">
+            <div class="input-group-vertical">
+                <div class="input-field">
+                    <label for="userName">顯示名稱：</label>
+                    <input type="text" id="userName" placeholder="請輸入你的顯示名稱">
+                </div>
+                <div class="input-field">
+                    <label for="groupName">組別名稱：</label>
+                    <input type="text" id="groupName" placeholder="請輸入你的組別名稱（選填）">
+                </div>
+                <button id="setUserNameButton">設定/更新名稱</button>
             </div>
-            <div class="input-group">
-                <label for="groupName">組別名稱：</label>
-                <input type="text" id="groupName" placeholder="請輸入組別名稱（選填）">
-            </div>
-            <button id="setUserNameButton">設定/更新名稱</button>
             <div class="current-user-info">
                 <span>目前使用者：</span>
                 <span id="currentUserId">未設定</span>
@@ -33,9 +34,9 @@
         </div>
 
         <div class="tab-container">
-            <button id="tabButton-ClockTab" class="tab-button active" data-tab="ClockTab">今日甦醒</button>
-            <button id="tabButton-HistoryTab" class="tab-button" data-tab="HistoryTab">甦醒軌跡</button>
-            <button id="tabButton-GlobalTodayMapTab" class="tab-button" data-tab="GlobalTodayMapTab">眾人地圖</button>
+            <button id="tabButton-ClockTab" class="tab-button active" onclick="openTab(event, 'ClockTab')">今日甦醒</button>
+            <button id="tabButton-HistoryTab" class="tab-button" onclick="openTab(event, 'HistoryTab')">甦醒軌跡</button>
+            <button id="tabButton-GlobalTodayMapTab" class="tab-button" onclick="openTab(event, 'GlobalTodayMapTab')">眾人地圖</button>
         </div>
 
         <div id="ClockTab" class="tab-content active">
@@ -93,18 +94,65 @@
         </div>
     </div>
 
-    <!-- Firebase SDK -->
-    <!-- 移除 compat 版 Firebase SDK script 標籤 -->
-    
-    <!-- 初始化 Firebase -->
-    <!-- 移除舊的初始化 script 區塊 -->
-    
-    <!-- Leaflet -->
+    <!-- 1. 首先載入 Firebase 配置 -->
+    <script src="/api/config"></script>
+
+    <!-- 2. 載入 Firebase SDK 並初始化 -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, where, getDocs, orderBy, serverTimestamp, doc, setDoc, getDoc, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"; 
+
+        // 等待配置載入完成
+        function waitForConfig() {
+            return new Promise((resolve, reject) => {
+                if (window.firebaseConfig) {
+                    resolve(window.firebaseConfig);
+                    return;
+                }
+
+                const maxAttempts = 10;
+                let attempts = 0;
+                const interval = setInterval(() => {
+                    if (window.firebaseConfig) {
+                        clearInterval(interval);
+                        resolve(window.firebaseConfig);
+                        return;
+                    }
+                    attempts++;
+                    if (attempts >= maxAttempts) {
+                        clearInterval(interval);
+                        reject(new Error('Firebase 配置載入超時'));
+                    }
+                }, 500);
+            });
+        }
+
+        // 初始化 Firebase
+        waitForConfig().then(firebaseConfig => {
+        window.firebaseSDK = {
+            initializeApp,
+            getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken,
+            getFirestore, collection, addDoc, query, where, getDocs, orderBy, serverTimestamp, doc, setDoc, getDoc, limit,
+            setLogLevel
+        };
+            
+            // 觸發自定義事件，通知 script.js Firebase 已準備就緒
+            const event = new CustomEvent('firebaseReady', { detail: firebaseConfig });
+            window.dispatchEvent(event);
+        }).catch(error => {
+            console.error('Firebase 初始化失敗:', error);
+            alert('Firebase 初始化失敗，請重新載入頁面。');
+        });
+    </script>
+
+    <!-- 3. 載入 Leaflet -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
      crossorigin=""></script>
 
-    <!-- 主應用程式腳本（改用 module 版） -->
-    <script type="module" src="/script.js"></script>
+    <!-- 4. 最後載入主應用程式腳本 -->
+    <script src="script.js"></script>
 </body>
 </html>
