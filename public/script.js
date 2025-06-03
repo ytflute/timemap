@@ -3,100 +3,78 @@ import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken }
 import { getFirestore, collection, addDoc, query, where, getDocs, orderBy, serverTimestamp, doc, setDoc, getDoc, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-// 取得 config
-const firebaseConfig = await (await fetch('/api/config')).json();
+// 移除全域 firebaseConfig、app、auth、db、storage 宣告
+let auth, db, storage, app;
 
-// 初始化 Firebase
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const storage = getStorage(app);
+async function main() {
+    try {
+        // 取得 config
+        const firebaseConfig = await (await fetch('/api/config')).json();
+        // 初始化 Firebase
+        app = initializeApp(firebaseConfig);
+        auth = getAuth(app);
+        db = getFirestore(app);
+        storage = getStorage(app);
 
-// DOM 元素獲取
-const findCityButton = document.getElementById('findCityButton');
-const resultTextDiv = document.getElementById('resultText');
-const countryFlagImg = document.getElementById('countryFlag');
-const mapContainerDiv = document.getElementById('mapContainer');
-const debugInfoSmall = document.getElementById('debugInfo');
+        // DOM 元素獲取
+        const findCityButton = document.getElementById('findCityButton');
+        const resultTextDiv = document.getElementById('resultText');
+        const countryFlagImg = document.getElementById('countryFlag');
+        const mapContainerDiv = document.getElementById('mapContainer');
+        const debugInfoSmall = document.getElementById('debugInfo');
 
-const userNameInput = document.getElementById('userName');
-const setUserNameButton = document.getElementById('setUserNameButton');
-const currentUserIdSpan = document.getElementById('currentUserId');
-const currentUserDisplayNameSpan = document.getElementById('currentUserDisplayName');
+        const userNameInput = document.getElementById('userName');
+        const setUserNameButton = document.getElementById('setUserNameButton');
+        const currentUserIdSpan = document.getElementById('currentUserId');
+        const currentUserDisplayNameSpan = document.getElementById('currentUserDisplayName');
 
-const historyListUl = document.getElementById('historyList');
-const historyMapContainerDiv = document.getElementById('historyMapContainer');
-const historyDebugInfoSmall = document.getElementById('historyDebugInfo');
-const refreshHistoryButton = document.getElementById('refreshHistoryButton');
+        const historyListUl = document.getElementById('historyList');
+        const historyMapContainerDiv = document.getElementById('historyMapContainer');
+        const historyDebugInfoSmall = document.getElementById('historyDebugInfo');
+        const refreshHistoryButton = document.getElementById('refreshHistoryButton');
 
-const globalDateInput = document.getElementById('globalDate');
-const refreshGlobalMapButton = document.getElementById('refreshGlobalMapButton');
-const globalTodayMapContainerDiv = document.getElementById('globalTodayMapContainer');
-const globalTodayDebugInfoSmall = document.getElementById('globalTodayDebugInfo');
+        const globalDateInput = document.getElementById('globalDate');
+        const refreshGlobalMapButton = document.getElementById('refreshGlobalMapButton');
+        const globalTodayMapContainerDiv = document.getElementById('globalTodayMapContainer');
+        const globalTodayDebugInfoSmall = document.getElementById('globalTodayDebugInfo');
 
-let currentGroupName = "";
-const groupNameInput = document.getElementById('groupName');
-const currentGroupNameSpan = document.getElementById('currentGroupName');
-const groupFilterSelect = document.getElementById('groupFilter');
+        let currentGroupName = "";
+        const groupNameInput = document.getElementById('groupName');
+        const currentGroupNameSpan = document.getElementById('currentGroupName');
+        const groupFilterSelect = document.getElementById('groupFilter');
 
-// 全域變數
-let citiesData = [];
-let currentDataIdentifier = null;
-let rawUserDisplayName = "";
-let clockLeafletMap = null;
-let globalLeafletMap = null;
-let globalMarkerLayerGroup = null;
-let historyLeafletMap = null;
-let historyMarkerLayerGroup = null;
+        // 全域變數
+        let citiesData = [];
+        let currentDataIdentifier = null;
+        let rawUserDisplayName = "";
+        let clockLeafletMap = null;
+        let globalLeafletMap = null;
+        let globalMarkerLayerGroup = null;
+        let historyLeafletMap = null;
+        let historyMarkerLayerGroup = null;
 
-// 等待 Firebase 配置載入
-async function waitForFirebaseConfig() {
-    return new Promise((resolve, reject) => {
-        if (window.firebaseConfig) {
-            resolve(window.firebaseConfig);
-            return;
+        console.log("等待 Firebase 配置載入...");
+
+        if (!firebaseConfig.projectId) {
+            throw new Error("Firebase 設定不完整!");
         }
 
-        const maxAttempts = 10;
-        let attempts = 0;
-        const interval = setInterval(() => {
-            if (window.firebaseConfig) {
-                clearInterval(interval);
-                resolve(window.firebaseConfig);
-                return;
-            }
-            attempts++;
-            if (attempts >= maxAttempts) {
-                clearInterval(interval);
-                reject(new Error('Firebase 配置載入超時'));
-            }
-        }, 500);
-    });
-}
+        console.log("Firebase 配置已載入，開始初始化...");
+        const app = initializeApp(firebaseConfig);
+        auth = getAuth(app);
+        db = getFirestore(app);
+        console.log("Firebase 初始化成功。Project ID:", firebaseConfig.projectId);
 
-try {
-    console.log("等待 Firebase 配置載入...");
-    const firebaseConfig = await waitForFirebaseConfig();
-
-    if (!firebaseConfig.projectId) {
-        throw new Error("Firebase 設定不完整!");
+        // 初始化成功後載入城市數據
+        await loadCitiesData();
+    } catch (e) {
+        console.error("Firebase 初始化失敗:", e);
+        currentUserIdSpan.textContent = "Firebase 初始化失敗";
+        alert("Firebase 初始化失敗，部分功能可能無法使用。");
+        // 不需要 return
     }
-
-    console.log("Firebase 配置已載入，開始初始化...");
-    const app = initializeApp(firebaseConfig);
-    auth = getAuth(app);
-    db = getFirestore(app);
-    console.log("Firebase 初始化成功。Project ID:", firebaseConfig.projectId);
-
-    // 初始化成功後載入城市數據
-    await loadCitiesData();
-
-} catch (e) {
-    console.error("Firebase 初始化失敗:", e);
-    currentUserIdSpan.textContent = "Firebase 初始化失敗";
-    alert("Firebase 初始化失敗，部分功能可能無法使用。");
-    return;
 }
+main();
 
 // 將城市數據載入邏輯移到單獨的函數
 async function loadCitiesData() {
