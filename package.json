@@ -1,36 +1,30 @@
 {
-    "name": "subjective-clock",
-    "version": "1.0.0",
-    "description": "A subjective world clock map that generates adventure stories based on location and time.",
-    "main": "public/index.html",
-    "type": "commonjs",
-    "scripts": {
-      "test": "echo \"Error: no test specified\" && exit 1",
-      "start": "http-server public -p 3000",
-      "dev": "vercel dev",
-      "deploy": "vercel deploy --prod",
-      "local": "http-server public -p 3000"
-    },
-    "keywords": [
-      "map",
-      "clock",
-      "world",
-      "openai",
-      "story",
-      "vercel",
-      "firebase"
-    ],
-    "author": "Yu-Ting Cheng",
-    "license": "ISC",
-    "dependencies": {
-      "firebase": "^10.8.0",
-      "openai": "^4.0.0",
-      "firebase-admin": "^12.0.0"
-    },
-    "devDependencies": {
-      "http-server": "^14.1.1"
-    },
-    "engines": {
-      "node": "18.x"
-    }
+  "name": "subjective-clock",
+  "version": "1.0.0",
+  "description": "A subjective world clock map that generates adventure stories based on location and time.",
+  "main": "index.html",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "vercel dev",
+    "deploy": "vercel deploy --prod"
+  },
+  "keywords": [
+    "map",
+    "clock",
+    "world",
+    "openai",
+    "story",
+    "vercel",
+    "firebase"
+  ],
+  "author": "Yu-Ting Cheng",
+  "license": "ISC",
+  "dependencies": {
+    "openai": "^4.0.0",
+    "firebase": "^10.7.1",
+    "firebase-admin": "^12.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }

@@ -1,9 +1,12 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { getFirestore, collection, addDoc, query, where, getDocs, orderBy, serverTimestamp, doc, setDoc, getDoc, limit, setLogLevel } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
-
 document.addEventListener('DOMContentLoaded', async () => {
+    // 從 window 中獲取 Firebase SDK 函數
+    const {
+        initializeApp,
+        getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken,
+        getFirestore, collection, addDoc, query, where, getDocs, orderBy, serverTimestamp, doc, setDoc, getDoc, limit,
+        setLogLevel
+    } = window.firebaseSDK;
+
     // DOM 元素獲取
     const findCityButton = document.getElementById('findCityButton');
     const resultTextDiv = document.getElementById('resultText');
@@ -46,36 +49,66 @@ document.addEventListener('DOMContentLoaded', async () => {
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id-worldclock-history';
     const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyC5-AKkFhx9olWx57bdB985IwZA9DpH66o", // 請替換成您的 Firebase API Key
-      authDomain: "subjective-clock.firebaseapp.com",
-      projectId: "subjective-clock",
-      storageBucket: "subjective-clock.appspot.com",
-      messagingSenderId: "452566766153",
-      appId: "1:452566766153:web:522312f3ed5c81403f2598",
-      measurementId: "G-QZ6440LZEM"
-    };
-
-    console.log("DOM 已載入。開始初始化 Firebase...");
-
-    if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
-        console.error("Firebase 設定不完整!");
-        alert("Firebase 設定不完整，應用程式無法初始化 Firebase。");
-        currentUserIdSpan.textContent = "Firebase 設定錯誤";
-        return;
+    // 等待 Firebase 配置載入
+    async function waitForFirebaseConfig() {
+        let attempts = 0;
+        const maxAttempts = 10;
+        
+        while (attempts < maxAttempts) {
+            if (window.firebaseConfig) {
+                return window.firebaseConfig;
+            }
+            await new Promise(resolve => setTimeout(resolve, 500));
+            attempts++;
+        }
+        throw new Error('無法載入 Firebase 配置');
     }
 
     try {
-        setLogLevel('debug'); // 只針對 Firestore 設定 log level
+        console.log("等待 Firebase 配置載入...");
+        const firebaseConfig = await waitForFirebaseConfig();
+
+    if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+            throw new Error("Firebase 設定不完整!");
+    }
+
+        console.log("Firebase 配置已載入，開始初始化...");
+        setLogLevel('debug');
         const app = initializeApp(firebaseConfig);
         auth = getAuth(app);
         db = getFirestore(app);
-        console.log("Firebase 初始化成功。App ID (用於路徑前綴):", appId, "Project ID (來自設定):", firebaseConfig.projectId);
+        console.log("Firebase 初始化成功。App ID:", appId, "Project ID:", firebaseConfig.projectId);
+
+        // 初始化成功後載入城市數據
+        await loadCitiesData();
+
     } catch (e) {
         console.error("Firebase 初始化失敗:", e);
         currentUserIdSpan.textContent = "Firebase 初始化失敗";
         alert("Firebase 初始化失敗，部分功能可能無法使用。");
         return;
+    }
+
+    // 將城市數據載入邏輯移到單獨的函數
+    async function loadCitiesData() {
+        try {
+            const response = await fetch('cities_data.json');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            citiesData = await response.json();
+            console.log("城市數據已載入", citiesData.length, "筆");
+            if (citiesData.length === 0) {
+                resultTextDiv.innerHTML = "提示：載入的城市數據為空。";
+                findCityButton.disabled = true;
+            } else if (currentDataIdentifier && auth.currentUser) {
+                findCityButton.disabled = false;
+            }
+        } catch (e) {
+            console.error("無法載入城市數據:", e);
+            resultTextDiv.innerHTML = "錯誤：無法載入城市數據。";
+            findCityButton.disabled = true;
+        }
     }
 
     async function fetchStoryFromAPI(city, country, countryCode) {
@@ -288,6 +321,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 更新組別選擇下拉選單
         await updateGroupFilter();
 
+        // 檢查是否在歷史記錄分頁，如果是則重新載入歷史記錄
+        if (document.getElementById('HistoryTab').style.display !== 'none') {
+            console.log("[setOrLoadUserName] 在歷史記錄分頁，重新載入歷史記錄");
+            await loadHistory();
+        }
+
+        // 檢查是否在時鐘分頁，如果是則顯示最後記錄
+        if (document.getElementById('ClockTab').style.display !== 'none') {
+            console.log("[setOrLoadUserName] 在時鐘分頁，顯示最後記錄");
+            await displayLastRecordForCurrentUser();
+        }
+
         if (citiesData.length > 0 && auth.currentUser && currentDataIdentifier) {
             console.log("[setOrLoadUserName] 所有條件滿足，啟用 findCityButton。");
             findCityButton.disabled = false;
@@ -296,9 +341,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             findCityButton.disabled = true;
         }
 
-        console.log("[setOrLoadUserName] 準備切換到時鐘分頁並顯示最後記錄。");
-        openTab(null, 'ClockTab', true);
-        await displayLastRecordForCurrentUser();
         return true;
     }
 
@@ -333,10 +375,55 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    setUserNameButton.addEventListener('click', async () => {
+    // 設定名稱按鈕的事件處理
+    setUserNameButton.addEventListener('click', async (e) => {
+        e.preventDefault();
         console.log("「設定/更新名稱」按鈕被點擊。");
         await setOrLoadUserName(userNameInput.value.trim());
     });
+
+    // 添加觸控事件支援
+    setUserNameButton.addEventListener('touchstart', async (e) => {
+        e.preventDefault();
+        console.log("「設定/更新名稱」按鈕被觸控。");
+        await setOrLoadUserName(userNameInput.value.trim());
+    }, { passive: false });
+
+    // 防止觸控時的滾動
+    setUserNameButton.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+    }, { passive: false });
+
+    // 防止觸控結束時的點擊事件
+    setUserNameButton.addEventListener('touchend', (e) => {
+        e.preventDefault();
+    }, { passive: false });
+
+    // 添加 CSS 樣式以改善手機上的按鈕體驗
+    const buttonStyle = document.createElement('style');
+    buttonStyle.textContent = `
+        #setUserNameButton {
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+            cursor: pointer;
+            min-height: 44px;
+            padding: 8px 16px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            background-color: #a6a08f;
+            color: white;
+            transition: background-color 0.2s;
+        }
+        #setUserNameButton:active {
+            background-color: #827d6f;
+        }
+        @media (hover: hover) {
+            #setUserNameButton:hover {
+                background-color: #827d6f;
+            }
+        }
+    `;
+    document.head.appendChild(buttonStyle);
 
     async function displayLastRecordForCurrentUser() {
         console.log("[displayLastRecordForCurrentUser] 函數被呼叫。currentDataIdentifier:", currentDataIdentifier);
@@ -456,29 +543,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    fetch('cities_data.json')
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            citiesData = data;
-            console.log("城市數據已載入", citiesData.length, "筆");
-            if (citiesData.length === 0) {
-                resultTextDiv.innerHTML = "提示：載入的城市數據為空。";
-                findCityButton.disabled = true;
-            } else if (currentDataIdentifier && auth.currentUser) {
-                findCityButton.disabled = false;
-            }
-        })
-        .catch(e => {
-            console.error("無法載入城市數據:", e);
-            resultTextDiv.innerHTML = "錯誤：無法載入城市數據。";
-            findCityButton.disabled = true;
-        });
-
     findCityButton.addEventListener('click', findMatchingCity);
     refreshHistoryButton.addEventListener('click', loadHistory);
     if (refreshGlobalMapButton) {
@@ -499,6 +563,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function getCityUTCOffsetHours(ianaTimeZone) {
+        if (!ianaTimeZone || typeof ianaTimeZone !== 'string') {
+            console.warn("無效的時區輸入:", ianaTimeZone);
+            return 0; // 返回 UTC 偏移
+        }
+
         try {
             const now = new Date();
             
@@ -549,19 +618,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             return parseOffsetString(offsetString);
         } catch (e) {
-            console.error("獲取時區偏移時發生錯誤:", ianaTimeZone, e);
-            
-            // 最後的備用方法：直接使用時間差異計算
-            try {
-                const now = new Date();
-                const localDate = new Date(now.toLocaleString('en-US', { timeZone: ianaTimeZone }));
-                const utcDate = new Date(now.toLocaleString('en-US', { timeZone: 'UTC' }));
-                const offsetInMinutes = (localDate - utcDate) / (60 * 1000);
-                return offsetInMinutes / 60;
-            } catch (fallbackError) {
-                console.error("備用方法也失敗:", fallbackError);
-                return NaN;
-            }
+            console.warn(`處理時區 ${ianaTimeZone} 時發生錯誤:`, e);
+            return 0; // 對於任何錯誤，返回 UTC 偏移
         }
     }
 
@@ -659,11 +717,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             const cityLocalTime = (userUTCTime + cityUTCOffset + 24) % 24;
             
             // 檢查該城市的當地時間是否接近目標時間（早上 8:00）
-            // 允許 30 分鐘的誤差
+            // 允許 40 分鐘的誤差
             const timeDiff = Math.abs(cityLocalTime - targetHour);
             const adjustedTimeDiff = Math.min(timeDiff, 24 - timeDiff);
             
-            if (adjustedTimeDiff <= 1.0) { // 1.0 小時 = 60 分鐘
+            if (adjustedTimeDiff <= 0.67) { // 0.67 小時 = 40 分鐘
                 candidateCities.push({
                     ...city,
                     timeDiff: adjustedTimeDiff,
@@ -673,49 +731,41 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        // 根據時間差排序候選城市
-        candidateCities.sort((a, b) => a.timeDiff - b.timeDiff);
-
+        // 如果沒有找到任何候選城市，顯示宇宙訊息
         if (candidateCities.length === 0) {
-            const apiResponse = await fetchStoryFromAPI("未知星球", "宇宙", "UNIVERSE_CODE");
-            const greetingFromAPI = apiResponse.greeting;
-            const storyFromAPI = apiResponse.story;
-
             resultTextDiv.innerHTML = `
-                <p style="font-weight: bold; font-size: 1.1em;">${greetingFromAPI}</p>
-                <p>今天的你，在當地 <strong>${userLocalDate.toLocaleTimeString()}</strong> 開啟了這一天，<br>但是很抱歉，你已經脫離地球了，與非地球生物共同開啟了新的一天。</p>
-                <p style="font-style: italic; margin-top: 10px; font-size: 0.9em; color: #555;">${storyFromAPI}</p>
+                <p style="font-weight: bold; font-size: 1.1em;">(系統提示：無法找到符合條件的城市)</p>
+                <p>今天的你已脫離地球，<br>與<strong>未知星球 (Universe)</strong>非地球生物共同開啟了新的一天！</p>
+                <p style="font-style: italic; margin-top: 10px; font-size: 0.9em; color: #555;">在浩瀚宇宙中，時間的概念變得模糊。這裡沒有日出日落，沒有晨昏交替，只有永恆的星光陪伴著你。</p>
             `;
 
-            if (clockLeafletMap) {
-                clockLeafletMap.remove();
-                clockLeafletMap = null;
-            }
-            mapContainerDiv.innerHTML = '';
+            countryFlagImg.style.display = 'none';
             mapContainerDiv.classList.add('universe-message');
             mapContainerDiv.innerHTML = "<p>浩瀚宇宙，無從定位...</p>";
-            countryFlagImg.style.display = 'none';
 
             // 創建早餐圖片容器
             const breakfastContainer = document.createElement('div');
             breakfastContainer.id = 'breakfastImageContainer';
             breakfastContainer.style.marginTop = '20px';
             breakfastContainer.style.textAlign = 'center';
-            breakfastContainer.innerHTML = '<p style="color: #007bff;"><i>正在為你準備來自宇宙深處的神秘早餐......</i></p>';
+            breakfastContainer.innerHTML = '<p style="color: #007bff;"><i>正在為你準備宇宙早餐......</i></p>';
             
             // 將早餐圖片容器插入到地圖和 debugInfo 之間
             debugInfoSmall.parentNode.insertBefore(breakfastContainer, debugInfoSmall);
-            debugInfoSmall.innerHTML = `(嘗試尋找的目標 UTC 偏移: ${targetUTCOffsetHours.toFixed(2)})`;
+            debugInfoSmall.innerHTML = `(目標 UTC 偏移: ${targetUTCOffsetHours.toFixed(2)}, 時區: Unknown)`;
 
-            // 生成早餐圖片，使用特殊的宇宙主題提示
+            // 生成宇宙早餐圖片
             try {
+                const token = await auth.currentUser.getIdToken();
                 const imageResponse = await fetch('/api/generateImage', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
                     body: JSON.stringify({ 
-                        city: "未知星球",
-                        country: "宇宙",
-                        isUniverseTheme: true  // 只需要傳遞這個標記，讓後端決定使用哪個 prompt
+                        city: "Unknown Planet",
+                        country: "Universe"
                     })
                 });
 
@@ -726,11 +776,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     breakfastContainer.innerHTML = `
                         <div class="postcard-image-container">
                             <img src="${imageData.imageUrl}" alt="宇宙早餐" style="max-width: 100%; border-radius: 8px;">
-                            <p style="font-size: 0.9em; color: #555;"><em>今日的星際早餐</em></p>
+                            <p style="font-size: 0.9em; color: #555;"><em>宇宙早餐</em></p>
                         </div>
                     `;
 
-                    const universeRecord = {
+                    const recordData = {
                         dataIdentifier: currentDataIdentifier,
                         userDisplayName: rawUserDisplayName,
                         recordedAt: serverTimestamp(),
@@ -745,44 +795,73 @@ document.addEventListener('DOMContentLoaded', async () => {
                         targetUTCOffset: targetUTCOffsetHours,
                         matchedCityUTCOffset: null,
                         recordedDateString: userLocalDate.toISOString().split('T')[0],
-                        greeting: greetingFromAPI,
-                        story: storyFromAPI,
+                        greeting: "(系統提示：無法找到符合條件的城市)",
+                        story: "在浩瀚宇宙中，時間的概念變得模糊。這裡沒有日出日落，沒有晨昏交替，只有永恆的星光陪伴著你。",
                         imageUrl: imageData.imageUrl,
-                        timezone: "Cosmic/Unknown",
-                        isUniverseTheme: true
+                        timezone: "Unknown"
                     };
-                    await saveHistoryRecord(universeRecord);
-                    await saveToGlobalDailyRecord(universeRecord);
+                    await saveHistoryRecord(recordData);
+                    await saveToGlobalDailyRecord(recordData);
                 }
             } catch (error) {
-                console.error("生成早餐圖片失敗:", error);
-                breakfastContainer.innerHTML = `<p style="color: red;">抱歉，生成星際早餐圖片時發生錯誤：${error.message}</p>`;
+                console.error("生成宇宙早餐圖片失敗:", error);
+                breakfastContainer.innerHTML = `<p style="color: red;">抱歉，生成宇宙早餐圖片時發生錯誤：${error.message}</p>`;
             }
 
-            console.log("--- 尋找匹配城市結束 (宇宙情況) ---");
             findCityButton.disabled = false;
             return;
         }
 
-        // 選擇時間差最小的城市
-        const bestMatchCity = candidateCities[0];
-        const cityActualUTCOffset = getCityUTCOffsetHours(bestMatchCity.timezone);
-        const finalCityName = bestMatchCity.city_zh && bestMatchCity.city_zh !== bestMatchCity.city ? `${bestMatchCity.city_zh} (${bestMatchCity.city})` : bestMatchCity.city;
-        const finalCountryName = bestMatchCity.country_zh && bestMatchCity.country_zh !== bestMatchCity.country ? `${bestMatchCity.country_zh} (${bestMatchCity.country})` : bestMatchCity.country;
+        // 根據時間差排序候選城市
+        candidateCities.sort((a, b) => a.timeDiff - b.timeDiff);
 
-        const apiResponse = await fetchStoryFromAPI(finalCityName, finalCountryName, bestMatchCity.country_iso_code);
+        // 找出時間差最小的值
+        const minTimeDiff = candidateCities[0].timeDiff;
+        
+        // 篩選出時間差最小的城市
+        const bestTimeCities = candidateCities.filter(city => city.timeDiff === minTimeDiff);
+
+        // 根據時間差計算緯度範圍
+        let latitudeRange;
+        if (minTimeDiff <= 0.1) { // 時間差小於 6 分鐘
+            latitudeRange = { min: 0, max: 20 }; // 低緯度地區
+        } else if (minTimeDiff <= 0.2) { // 時間差小於 12 分鐘
+            latitudeRange = { min: 20, max: 45 }; // 中緯度地區
+        } else { // 時間差大於 12 分鐘
+            latitudeRange = { min: 45, max: 90 }; // 高緯度地區
+        }
+        
+        // 在時間差最小的城市中，根據緯度範圍篩選
+        const matchingCities = bestTimeCities.filter(city => {
+            const latitude = Math.abs(city.latitude); // 使用絕對值以包含南北半球
+            return latitude >= latitudeRange.min && latitude <= latitudeRange.max;
+        });
+
+        // 如果找到符合緯度範圍的城市，隨機選擇一個
+        let bestMatchCity;
+        if (matchingCities.length > 0) {
+            const randomIndex = Math.floor(Math.random() * matchingCities.length);
+            bestMatchCity = matchingCities[randomIndex];
+        } else {
+            // 如果沒有符合緯度範圍的城市，返回時間差最小的第一個城市
+            bestMatchCity = bestTimeCities[0];
+        }
+
+        const cityActualUTCOffset = getCityUTCOffsetHours(bestMatchCity.timezone);
+
+        const apiResponse = await fetchStoryFromAPI(bestMatchCity.city_zh, bestMatchCity.country_zh, bestMatchCity.country_iso_code);
         const greetingFromAPI = apiResponse.greeting;
         const storyFromAPI = apiResponse.story;
 
         resultTextDiv.innerHTML = `
             <p style="font-weight: bold; font-size: 1.1em;">${greetingFromAPI}</p>
-            <p>今天的你是<strong>${finalCityName} (${finalCountryName})</strong>人！</p>
+            <p>今天的你是<strong>${bestMatchCity.city_zh} (${bestMatchCity.country_zh})</strong>人！</p>
             <p style="font-style: italic; margin-top: 10px; font-size: 0.9em; color: #555;">${storyFromAPI}</p>
         `;
 
         if (bestMatchCity.country_iso_code) {
             countryFlagImg.src = `https://flagcdn.com/w40/${bestMatchCity.country_iso_code.toLowerCase()}.png`;
-            countryFlagImg.alt = `${finalCountryName} 國旗`;
+            countryFlagImg.alt = `${bestMatchCity.country_zh} 國旗`;
             countryFlagImg.style.display = 'inline-block';
         }
 
@@ -802,7 +881,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }).addTo(clockLeafletMap);
             L.circleMarker([bestMatchCity.latitude, bestMatchCity.longitude], {
                 color: 'red', fillColor: '#f03', fillOpacity: 0.8, radius: 8
-            }).addTo(clockLeafletMap).bindPopup(`<b>${finalCityName}</b><br>${finalCountryName}`).openPopup();
+            }).addTo(clockLeafletMap).bindPopup(`<b>${bestMatchCity.city_zh} (${bestMatchCity.country_zh})</b><br>${bestMatchCity.country_zh}`).openPopup();
         } else {
             mapContainerDiv.innerHTML = "<p>無法顯示地圖，城市座標資訊不完整或無效。</p>";
         }
@@ -820,38 +899,55 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // 生成早餐圖片
         try {
-            const permanentUrl = await generateBreakfastImage(
-                bestMatchCity.city_zh || bestMatchCity.city,
-                bestMatchCity.country_zh || bestMatchCity.country
-            );
-            breakfastContainer.innerHTML = `
-                <div class="postcard-image-container">
-                    <img src="${permanentUrl}" alt="${finalCityName}的早餐" style="max-width: 100%; border-radius: 8px;">
-                    <p style="font-size: 0.9em; color: #555;"><em>${finalCityName}的早餐</em></p>
-                </div>
-            `;
-            const recordData = {
-                dataIdentifier: currentDataIdentifier,
-                userDisplayName: rawUserDisplayName,
-                recordedAt: serverTimestamp(),
-                localTime: userLocalDate.toLocaleTimeString(),
-                city: bestMatchCity.city,
-                country: bestMatchCity.country,
-                city_zh: bestMatchCity.city_zh || "",
-                country_zh: bestMatchCity.country_zh || "",
-                country_iso_code: bestMatchCity.country_iso_code.toLowerCase(),
-                latitude: bestMatchCity.latitude,
-                longitude: bestMatchCity.longitude,
-                targetUTCOffset: targetUTCOffsetHours,
-                matchedCityUTCOffset: !isFinite(cityActualUTCOffset) ? null : cityActualUTCOffset,
-                recordedDateString: userLocalDate.toISOString().split('T')[0],
-                greeting: greetingFromAPI,
-                story: storyFromAPI,
-                imageUrl: permanentUrl,
-                timezone: bestMatchCity.timezone || "Unknown"
-            };
-            await saveHistoryRecord(recordData);
-            await saveToGlobalDailyRecord(recordData);
+            // 先獲取認證令牌
+            const token = await auth.currentUser.getIdToken();
+            
+            const imageResponse = await fetch('/api/generateImage', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`  // 添加認證令牌
+                },
+                body: JSON.stringify({ 
+                    city: bestMatchCity.city_zh || bestMatchCity.city,
+                    country: bestMatchCity.country_zh || bestMatchCity.country
+                })
+            });
+
+            if (!imageResponse.ok) throw new Error(await imageResponse.text());
+            const imageData = await imageResponse.json();
+
+            if (imageData.imageUrl) {
+                breakfastContainer.innerHTML = `
+                    <div class="postcard-image-container">
+                        <img src="${imageData.imageUrl}" alt="${bestMatchCity.city_zh}的早餐" style="max-width: 100%; border-radius: 8px;">
+                        <p style="font-size: 0.9em; color: #555;"><em>${bestMatchCity.city_zh}的早餐</em></p>
+                    </div>
+                `;
+
+                const recordData = {
+                    dataIdentifier: currentDataIdentifier,
+                    userDisplayName: rawUserDisplayName,
+                    recordedAt: serverTimestamp(),
+                    localTime: userLocalDate.toLocaleTimeString(),
+                    city: bestMatchCity.city,
+                    country: bestMatchCity.country,
+                    city_zh: bestMatchCity.city_zh || "",
+                    country_zh: bestMatchCity.country_zh || "",
+                    country_iso_code: bestMatchCity.country_iso_code.toLowerCase(),
+                    latitude: bestMatchCity.latitude,
+                    longitude: bestMatchCity.longitude,
+                    targetUTCOffset: targetUTCOffsetHours,
+                    matchedCityUTCOffset: !isFinite(cityActualUTCOffset) ? null : cityActualUTCOffset,
+                    recordedDateString: userLocalDate.toISOString().split('T')[0],
+                    greeting: greetingFromAPI,
+                    story: storyFromAPI,
+                    imageUrl: imageData.imageUrl,
+                    timezone: bestMatchCity.timezone || "Unknown"
+                };
+                await saveHistoryRecord(recordData);
+                await saveToGlobalDailyRecord(recordData);
+            }
         } catch (error) {
             console.error("生成早餐圖片失敗:", error);
             breakfastContainer.innerHTML = `<p style="color: red;">抱歉，生成早餐圖片時發生錯誤：${error.message}</p>`;
@@ -895,10 +991,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
-        const userLocalDate = new Date();
-        const userLocalDateString = userLocalDate.toISOString().split('T')[0];
-
-        console.log(`[saveToGlobalDailyRecord] 使用者本地日期: ${userLocalDateString}`);
         console.log(`[saveToGlobalDailyRecord] 原始記錄日期: ${recordData.recordedDateString}`);
 
         const globalRecord = {
@@ -906,7 +998,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             userDisplayName: recordData.userDisplayName,
             groupName: currentGroupName || "",  // 添加組別資訊
             recordedAt: recordData.recordedAt,
-            recordedDateString: userLocalDateString,
+            recordedDateString: recordData.recordedDateString,  // 使用原始記錄的日期字串
             city: recordData.city,
             country: recordData.country,
             city_zh: recordData.city_zh,
@@ -1324,13 +1416,36 @@ document.addEventListener('DOMContentLoaded', async () => {
             buttonElement.textContent = '生成中...';
             postcardSection.innerHTML = '<p style="color: #007bff; text-align:center;"><i>正在為你準備當地人常吃的早餐......</i></p>';
 
-            // 產生 Storage 永久連結
-            const permanentUrl = await generateBreakfastImage(record.city_zh || record.city, record.country_zh || record.country);
+            // 獲取當前用戶的認證 token
+            const token = auth.currentUser ? await auth.currentUser.getIdToken() : null;
+
+            const response = await fetch('/api/generateImage', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ 
+                    city: record.city_zh || record.city,
+                    country: record.country_zh || record.country
+                })
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error("圖片生成 API 錯誤:", response.status, errorText);
+                throw new Error(`API 錯誤 (${response.status}): ${errorText}`);
+            }
+
+            const data = await response.json();
+            if (!data.imageUrl) throw new Error('圖片生成失敗：未收到圖片 URL');
+
             // 更新 Firestore 記錄
-            await updateRecordWithImage(record, permanentUrl);
-            record.imageUrl = permanentUrl;
+            await updateRecordWithImage(record, data.imageUrl);
+            record.imageUrl = data.imageUrl;
             renderPostcard(record, postcardSection);
             if (buttonElement) buttonElement.style.display = 'none';
+
         } catch (error) {
             console.error("圖片生成失敗:", error);
             postcardSection.innerHTML = `<p style="color: red;">生成圖片時發生錯誤：${error.message}</p>`;
@@ -1633,14 +1748,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     window.openTab = function(evt, tabName, isInitialLoad = false) {
         console.log(`[openTab] 切換到分頁: ${tabName}, 事件觸發: ${!!evt}, 初始載入: ${isInitialLoad}`);
+        
         // 如果是觸控事件，阻止預設行為
         if (evt && evt.type === 'touchstart') {
             evt.preventDefault();
         }
+
         let i, tabcontent, tablinks;
         tabcontent = document.getElementsByClassName("tab-content");
         for (i = 0; i < tabcontent.length; i++) {
-            tabcontent[i].classList.remove('active');
+            tabcontent[i].style.display = "none";
         }
         tablinks = document.getElementsByClassName("tab-button");
         for (i = 0; i < tablinks.length; i++) {
@@ -1648,11 +1765,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         const currentTabDiv = document.getElementById(tabName);
         if (currentTabDiv) {
-            currentTabDiv.classList.add('active');
-            console.log(`[openTab] ${tabName} 設為 active`);
+            currentTabDiv.style.display = "block";
+            console.log(`[openTab] ${tabName} 設為 display: block`);
         } else {
             console.warn(`[openTab] 找不到 ID 為 ${tabName} 的分頁內容元素。`);
         }
+
         const targetButtonId = `tabButton-${tabName}`;
         const targetButton = document.getElementById(targetButtonId);
         if (targetButton) {
@@ -1660,6 +1778,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else if (evt && evt.currentTarget) {
             evt.currentTarget.classList.add("active");
         }
+
         setTimeout(() => {
             if (tabName === 'HistoryTab') {
                 if (historyLeafletMap && historyMapContainerDiv.offsetParent !== null) {
@@ -1684,22 +1803,149 @@ document.addEventListener('DOMContentLoaded', async () => {
                         globalDateInput.value = `${year}-${month}-${day}`;
                         console.log("[openTab] GlobalTodayMapTab: 日期已重設為今天:", globalDateInput.value);
                     }
-                    console.log("[openTab] 呼叫 loadGlobalTodayMap for GlobalTodayMapTab (日期已重設為今天)."
-                    );
+                    console.log("[openTab] 呼叫 loadGlobalTodayMap for GlobalTodayMapTab (日期已重設為今天).");
                     loadGlobalTodayMap();
                 }
-            }
-            if (clockLeafletMap && mapContainerDiv.offsetParent !== null) {
-                console.log("[openTab] ClockTab is visible, invalidating map size.");
-                clockLeafletMap.invalidateSize();
-            }
-            if (currentDataIdentifier && auth.currentUser && !isInitialLoad && !initialLoadHandled) {
-                console.log("[openTab] 手動切換到 ClockTab，準備顯示最後記錄。");
-                initialLoadHandled = true;
-                displayLastRecordForCurrentUser();
+            } else if (tabName === 'ClockTab') {
+                if (clockLeafletMap && mapContainerDiv.offsetParent !== null) {
+                    console.log("[openTab] ClockTab is visible, invalidating map size.");
+                    clockLeafletMap.invalidateSize();
+                }
+                if (currentDataIdentifier && auth.currentUser && !isInitialLoad && !initialLoadHandled) {
+                    console.log("[openTab] 手動切換到 ClockTab，準備顯示最後記錄。");
+                    initialLoadHandled = true;
+                    displayLastRecordForCurrentUser();
+                }
             }
         }, 0);
     }
+
+    // 重寫分頁按鈕的事件處理
+    function initializeTabButtons() {
+        console.log("初始化分頁按鈕...");
+        const tabButtons = document.getElementsByClassName('tab-button');
+        
+        // 先移除所有現有的事件監聽器
+        Array.from(tabButtons).forEach(button => {
+            const newButton = button.cloneNode(true);
+            button.parentNode.replaceChild(newButton, button);
+        });
+
+        // 重新添加事件監聽器
+        Array.from(document.getElementsByClassName('tab-button')).forEach(button => {
+            const tabName = button.getAttribute('data-tab');
+            if (!tabName) return;
+
+            // 使用一個統一的處理函數
+            const handleTabClick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log(`點擊分頁按鈕: ${tabName}`);
+                openTab(e, tabName);
+            };
+
+            // 只使用 click 事件
+            button.addEventListener('click', handleTabClick);
+        });
+    }
+
+    // 確保在 DOM 載入完成後初始化
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initializeTabButtons);
+    } else {
+        initializeTabButtons();
+    }
+
+    // 修改分頁按鈕的樣式
+    const tabButtonStyle = document.createElement('style');
+    tabButtonStyle.textContent = `
+        .tabs {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            position: relative;
+            z-index: 2;
+            background: #fff;
+            padding: 0 4px;
+        }
+        .tab-button {
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+            cursor: pointer;
+            min-height: 48px;
+            padding: 12px 16px;
+            margin: 0 4px;
+            border: none;
+            background-color: transparent;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+            user-select: none;
+            -webkit-user-select: none;
+            position: relative;
+            z-index: 2;
+            display: inline-block;
+            text-align: center;
+            transform: translateZ(0);
+            will-change: transform;
+            -webkit-touch-callout: none;
+            -webkit-appearance: none;
+            appearance: none;
+            flex: 1;
+            max-width: 33.33%;
+        }
+        .tab-button.active {
+            border-bottom: 2px solid #e8af10;
+            color: #d6a70b;
+            font-weight: bold;
+        }
+        .tab-button:active {
+            background-color: rgba(232, 175, 16, 0.1);
+            transform: scale(0.98);
+        }
+        @media (hover: hover) {
+            .tab-button:hover {
+                background-color: rgba(232, 175, 16, 0.1);
+            }
+        }
+        @media (max-width: 768px) {
+            .tabs {
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+                -ms-overflow-style: none;
+                overflow-x: auto;
+                white-space: nowrap;
+                padding: 0 4px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                position: sticky;
+                top: 0;
+                background: #fff;
+                z-index: 1000;
+            }
+            .tab-button {
+                flex: 1;
+                text-align: center;
+                margin: 0 2px;
+                font-size: 14px;
+                padding: 12px 8px;
+                min-width: 60px;
+                min-height: 48px;
+                touch-action: manipulation;
+                position: relative;
+                z-index: 1001;
+            }
+            .tabs::-webkit-scrollbar {
+                display: none;
+            }
+            .tab-content {
+                position: relative;
+                z-index: 1;
+            }
+        }
+    `;
+    document.head.appendChild(tabButtonStyle);
 
     // 初始載入時，嘗試設定一個預設的使用者名稱 (如果 localStorage 中有)
     // 或者，直接觸發 ClockTab 的顯示 (如果已經有用戶名)
@@ -1718,10 +1964,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 等待 auth 狀態
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
             unsubscribe(); // Unsubscribe after first call
-            if (user && currentDataIdentifier) {
-                 await displayLastRecordForCurrentUser();
+            if (user && currentDataIdentifier && !initialLoadHandled) {
+                console.log("[onAuthStateChanged] 初始載入，顯示最後記錄");
+                initialLoadHandled = true;
+                await displayLastRecordForCurrentUser();
             } else if (!currentDataIdentifier) {
-                 resultTextDiv.innerHTML = `<p>歡迎！請在上方設定您的顯示名稱以開始使用。</p>`;
+                resultTextDiv.innerHTML = `<p>歡迎！請在上方設定您的顯示名稱以開始使用。</p>`;
             }
         });
     }
@@ -1760,65 +2008,46 @@ document.addEventListener('DOMContentLoaded', async () => {
     `;
     document.head.appendChild(style);
 
-    // 新增：上傳圖片到 Firebase Storage 的函數
-    async function uploadImageToStorage(imageUrl, city, country) {
-        try {
-            console.log("[uploadImageToStorage] 開始上傳圖片到 Firebase Storage");
-            const storage = getStorage();
-            const timestamp = Date.now();
-            const sanitizedCity = city.replace(/[^a-zA-Z0-9]/g, '_');
-            const sanitizedCountry = country.replace(/[^a-zA-Z0-9]/g, '_');
-            const imageRef = ref(storage, `breakfast-images/${sanitizedCity}-${sanitizedCountry}-${timestamp}.jpg`);
-            // 下載圖片
-            console.log("[uploadImageToStorage] 下載原始圖片");
-            const response = await fetch(imageUrl);
-            if (!response.ok) throw new Error(`下載圖片失敗: ${response.statusText}`);
-            const blob = await response.blob();
-            // 上傳到 Firebase Storage
-            console.log("[uploadImageToStorage] 上傳圖片到 Storage");
-            await uploadBytes(imageRef, blob);
-            // 獲取永久 URL
-            console.log("[uploadImageToStorage] 獲取永久 URL");
-            const permanentUrl = await getDownloadURL(imageRef);
-            console.log("[uploadImageToStorage] 成功獲取永久 URL");
-            return permanentUrl;
-        } catch (error) {
-            console.error("[uploadImageToStorage] 上傳圖片失敗:", error);
-            throw error;
-        }
-    }
+    // 等待 Firebase 準備就緒
+    window.addEventListener('firebaseReady', async (event) => {
+        const firebaseConfig = event.detail;
+        
+        // 從 window 中獲取 Firebase SDK 函數
+        const {
+            initializeApp,
+            getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken,
+            getFirestore, collection, addDoc, query, where, getDocs, orderBy, serverTimestamp, doc, setDoc, getDoc, limit,
+            setLogLevel
+        } = window.firebaseSDK;
 
-    // 修改：生成早餐圖片的函數
-    async function generateBreakfastImage(city, country) {
+        // DOM 元素獲取
+        const findCityButton = document.getElementById('findCityButton');
+        const resultTextDiv = document.getElementById('resultText');
+        const countryFlagImg = document.getElementById('countryFlag');
+        const mapContainerDiv = document.getElementById('mapContainer');
+        const debugInfoSmall = document.getElementById('debugInfo');
+
+        // ... rest of your existing code ...
+
+        // 初始化 Firebase
         try {
-            console.log("[generateBreakfastImage] 開始生成早餐圖片");
-            const token = await auth.currentUser.getIdToken();
-            const imageResponse = await fetch('/api/generateImage', {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ 
-                    city: city,
-                    country: country
-                })
-            });
-            if (!imageResponse.ok) {
-                const errorText = await imageResponse.text();
-                throw new Error(`API 錯誤 (${imageResponse.status}): ${errorText}`);
-            }
-            const imageData = await imageResponse.json();
-            if (!imageData.imageUrl) throw new Error('圖片生成失敗：未收到圖片 URL');
-            // 上傳到 Firebase Storage 並獲取永久 URL
-            console.log("[generateBreakfastImage] 上傳圖片到 Storage");
-            const permanentUrl = await uploadImageToStorage(imageData.imageUrl, city, country);
-            console.log("[generateBreakfastImage] 成功獲取永久 URL");
-            return permanentUrl;
-        } catch (error) {
-            console.error("[generateBreakfastImage] 生成早餐圖片失敗:", error);
-            throw error;
+            console.log("開始初始化 Firebase...");
+            setLogLevel('debug');
+            const app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+            console.log("Firebase 初始化成功。App ID:", appId, "Project ID:", firebaseConfig.projectId);
+
+            // 初始化成功後載入城市數據
+            await loadCitiesData();
+        } catch (e) {
+            console.error("Firebase 初始化失敗:", e);
+            currentUserIdSpan.textContent = "Firebase 初始化失敗";
+            alert("Firebase 初始化失敗，部分功能可能無法使用。");
+            return;
         }
-    }
+
+        // ... rest of your existing code ...
+    });
 
 });

@@ -1,19 +1,5 @@
 // /api/config/index.js
-const admin = require('firebase-admin');
-
-// 初始化 Firebase Admin
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL
-    }),
-    storageBucket: `${process.env.FIREBASE_PROJECT_ID}.appspot.com`
-  });
-}
-
-module.exports = async function handler(req, res) {
+export default function handler(req, res) {
   // 設置 CORS 標頭
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET');
@@ -32,27 +18,31 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  try {
-    // 設定 Firebase 配置
-    const firebaseConfig = {
-      apiKey: process.env.FIREBASE_API_KEY,
-      authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-      messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
-      appId: process.env.FIREBASE_APP_ID
-    };
+  const config = {
+    apiKey: process.env.FIREBASE_API_KEY,
+    authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+    projectId: process.env.FIREBASE_PROJECT_ID,
+    storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.FIREBASE_APP_ID,
+    measurementId: process.env.FIREBASE_MEASUREMENT_ID
+  };
 
-    // 檢查必要的配置是否存在
-    if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
-      console.error('Firebase 配置不完整');
-      return res.status(500).json({ error: 'Firebase 配置不完整' });
-    }
+  // 檢查必要的配置是否存在
+  const requiredKeys = ['apiKey', 'authDomain', 'projectId', 'storageBucket'];
+  const missingKeys = requiredKeys.filter(key => !config[key]);
 
-    // 返回配置
-    res.status(200).json(firebaseConfig);
-  } catch (error) {
-    console.error('API 錯誤:', error);
-    res.status(500).json({ error: '伺服器錯誤' });
+  if (missingKeys.length > 0) {
+    console.error('缺少必要的環境變數:', missingKeys);
+    res.status(500).json({ error: '伺服器配置不完整' });
+    return;
   }
+
+  const configScript = `window.firebaseConfig = ${JSON.stringify(config)};`;
+  
+  res.setHeader('Content-Type', 'application/javascript');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.status(200).send(configScript);
 } 

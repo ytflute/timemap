@@ -153,8 +153,4 @@ No people, only food. Styled like a professional food photography shot.`;
             details: process.env.NODE_ENV === 'development' ? error.stack : undefined
         });
     }
-<<<<<<< HEAD
 } 
-=======
-} 
->>>>>>> 40714b7 (更新文件結構和配置)
