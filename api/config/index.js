@@ -1,5 +1,5 @@
 // /api/config/index.js
-import admin from 'firebase-admin';
+const admin = require('firebase-admin');
 
 // 初始化 Firebase Admin
 if (!admin.apps.length) {
