@@ -92,16 +92,17 @@
         </div>
     </div>
 
-    <!-- 1. 首先載入 Firebase 配置 -->
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
+
+    <!-- 載入 Firebase 配置 -->
     <script src="/api/config"></script>
 
-    <!-- 2. 載入 Firebase SDK 並初始化 -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, query, where, getDocs, orderBy, serverTimestamp, doc, setDoc, getDoc, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-        import { setLogLevel } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"; 
-
+    <!-- 初始化 Firebase -->
+    <script>
         // 等待配置載入完成
         function waitForConfig() {
             return new Promise((resolve, reject) => {
@@ -129,12 +130,26 @@
 
         // 初始化 Firebase
         waitForConfig().then(firebaseConfig => {
-        window.firebaseSDK = {
-            initializeApp,
-            getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken,
-            getFirestore, collection, addDoc, query, where, getDocs, orderBy, serverTimestamp, doc, setDoc, getDoc, limit,
-            setLogLevel
-        };
+            window.firebaseSDK = {
+                initializeApp: firebase.initializeApp,
+                getAuth: firebase.auth,
+                signInAnonymously: firebase.auth().signInAnonymously,
+                onAuthStateChanged: firebase.auth().onAuthStateChanged,
+                signInWithCustomToken: firebase.auth().signInWithCustomToken,
+                getFirestore: firebase.firestore,
+                collection: firebase.firestore().collection,
+                addDoc: (ref, data) => ref.add(data),
+                query: firebase.firestore().query,
+                where: firebase.firestore().where,
+                getDocs: (q) => q.get(),
+                orderBy: firebase.firestore().orderBy,
+                serverTimestamp: firebase.firestore.FieldValue.serverTimestamp,
+                doc: firebase.firestore().doc,
+                setDoc: (ref, data) => ref.set(data),
+                getDoc: (ref) => ref.get(),
+                limit: firebase.firestore().limit,
+                setLogLevel: firebase.setLogLevel
+            };
             
             // 觸發自定義事件，通知 script.js Firebase 已準備就緒
             const event = new CustomEvent('firebaseReady', { detail: firebaseConfig });
@@ -145,18 +160,12 @@
         });
     </script>
 
-    <!-- 3. 載入 Leaflet -->
+    <!-- Leaflet -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
      crossorigin=""></script>
 
-    <!-- 4. 最後載入主應用程式腳本 -->
+    <!-- 主應用程式腳本 -->
     <script src="script.js"></script>
-
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
 </body>
 </html>

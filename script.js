@@ -46,39 +46,44 @@ document.addEventListener('DOMContentLoaded', async () => {
     let historyLeafletMap = null;
     let historyMarkerLayerGroup = null;
 
-    // Firebase 設定
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id-worldclock-history';
-    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
     // 等待 Firebase 配置載入
     async function waitForFirebaseConfig() {
-        let attempts = 0;
-        const maxAttempts = 10;
-        
-        while (attempts < maxAttempts) {
+        return new Promise((resolve, reject) => {
             if (window.firebaseConfig) {
-                return window.firebaseConfig;
+                resolve(window.firebaseConfig);
+                return;
             }
-            await new Promise(resolve => setTimeout(resolve, 500));
-            attempts++;
-        }
-        throw new Error('無法載入 Firebase 配置');
+
+            const maxAttempts = 10;
+            let attempts = 0;
+            const interval = setInterval(() => {
+                if (window.firebaseConfig) {
+                    clearInterval(interval);
+                    resolve(window.firebaseConfig);
+                    return;
+                }
+                attempts++;
+                if (attempts >= maxAttempts) {
+                    clearInterval(interval);
+                    reject(new Error('Firebase 配置載入超時'));
+                }
+            }, 500);
+        });
     }
 
     try {
         console.log("等待 Firebase 配置載入...");
         const firebaseConfig = await waitForFirebaseConfig();
 
-    if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+        if (!firebaseConfig.projectId) {
             throw new Error("Firebase 設定不完整!");
-    }
+        }
 
         console.log("Firebase 配置已載入，開始初始化...");
-        setLogLevel('debug');
         const app = initializeApp(firebaseConfig);
         auth = getAuth(app);
         db = getFirestore(app);
-        console.log("Firebase 初始化成功。App ID:", appId, "Project ID:", firebaseConfig.projectId);
+        console.log("Firebase 初始化成功。Project ID:", firebaseConfig.projectId);
 
         // 初始化成功後載入城市數據
         await loadCitiesData();
@@ -1918,7 +1923,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const app = initializeApp(firebaseConfig);
             auth = getAuth(app);
             db = getFirestore(app);
-            console.log("Firebase 初始化成功。App ID:", appId, "Project ID:", firebaseConfig.projectId);
+            console.log("Firebase 初始化成功。Project ID:", firebaseConfig.projectId);
 
             // 初始化成功後載入城市數據
             await loadCitiesData();
