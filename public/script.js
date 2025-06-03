@@ -8,40 +8,42 @@ let auth, db, storage, app;
 
 async function main() {
     try {
-        // 取得 config
+        // 1. 初始化 Firebase
         const firebaseConfig = await (await fetch('/api/config')).json();
-        // 初始化 Firebase
         app = initializeApp(firebaseConfig);
         auth = getAuth(app);
         db = getFirestore(app);
         storage = getStorage(app);
 
-        // DOM 元素獲取
+        // 2. 初始化 DOM 元素
         const findCityButton = document.getElementById('findCityButton');
         const resultTextDiv = document.getElementById('resultText');
         const countryFlagImg = document.getElementById('countryFlag');
         const mapContainerDiv = document.getElementById('mapContainer');
         const debugInfoSmall = document.getElementById('debugInfo');
-
         const userNameInput = document.getElementById('userName');
         const setUserNameButton = document.getElementById('setUserNameButton');
         const currentUserIdSpan = document.getElementById('currentUserId');
         const currentUserDisplayNameSpan = document.getElementById('currentUserDisplayName');
-
         const historyListUl = document.getElementById('historyList');
         const historyMapContainerDiv = document.getElementById('historyMapContainer');
         const historyDebugInfoSmall = document.getElementById('historyDebugInfo');
         const refreshHistoryButton = document.getElementById('refreshHistoryButton');
-
         const globalDateInput = document.getElementById('globalDate');
         const refreshGlobalMapButton = document.getElementById('refreshGlobalMapButton');
         const globalTodayMapContainerDiv = document.getElementById('globalTodayMapContainer');
         const globalTodayDebugInfoSmall = document.getElementById('globalTodayDebugInfo');
-
-        let currentGroupName = "";
         const groupNameInput = document.getElementById('groupName');
         const currentGroupNameSpan = document.getElementById('currentGroupName');
         const groupFilterSelect = document.getElementById('groupFilter');
+
+        // 3. 其餘初始化流程與主程式邏輯
+        // 請將所有依賴這些 DOM 變數的程式碼搬進 main() 或以參數傳遞
+        // ... 其餘初始化流程 ...
+
+        // 例如：
+        // await loadCitiesData();
+        // ... 其他主程式 ...
 
         // 全域變數
         let citiesData = [];
@@ -69,9 +71,10 @@ async function main() {
         await loadCitiesData();
     } catch (e) {
         console.error("Firebase 初始化失敗:", e);
-        currentUserIdSpan.textContent = "Firebase 初始化失敗";
+        // 這裡因 currentUserIdSpan 也在 main()，需加判斷
+        const currentUserIdSpan = document.getElementById('currentUserId');
+        if (currentUserIdSpan) currentUserIdSpan.textContent = "Firebase 初始化失敗";
         alert("Firebase 初始化失敗，部分功能可能無法使用。");
-        // 不需要 return
     }
 }
 main();
