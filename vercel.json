@@ -25,7 +25,7 @@
   "routes": [
     {
       "src": "/api/config",
-      "dest": "/api/config/index.js",
+      "dest": "/api/config.js",
       "headers": {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET",
