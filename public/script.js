@@ -1,13 +1,9 @@
-document.addEventListener('DOMContentLoaded', async () => {
-    // 從 window 中獲取 Firebase SDK 函數
-    const {
-        initializeApp,
-        getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken,
-        getFirestore, collection, addDoc, query, where, getDocs, orderBy, serverTimestamp, doc, setDoc, getDoc, limit,
-        setLogLevel,
-        getStorage, ref, uploadBytes, getDownloadURL
-    } = window.firebaseSDK;
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { getFirestore, collection, addDoc, query, where, getDocs, orderBy, serverTimestamp, doc, setDoc, getDoc, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
+document.addEventListener('DOMContentLoaded', async () => {
     // DOM 元素獲取
     const findCityButton = document.getElementById('findCityButton');
     const resultTextDiv = document.getElementById('resultText');
@@ -83,10 +79,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function fetchStoryFromAPI(city, country, countryCode) {
-    console.log(`[fetchStoryFromAPI] Calling backend /api/generateStory02 for City: ${city}, Country: ${country}, Country Code: ${countryCode}`);
+    console.log(`[fetchStoryFromAPI] Calling backend /api/generateStory for City: ${city}, Country: ${country}, Country Code: ${countryCode}`);
 
     try {
-        const response = await fetch('/api/generateStory02', { // 呼叫您 Vercel 部署的 API 路徑
+        const response = await fetch('/api/generateStory', { // 呼叫您 Vercel 部署的 API 路徑
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -101,7 +97,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!response.ok) {
             // 如果 API 返回 HTTP 錯誤狀態 (例如 4xx, 5xx)
             const errorData = await response.json().catch(() => ({ error: "無法解析 API 錯誤回應" })); // 嘗試解析錯誤詳情
-            console.error(`API Error from /api/generateStory02: ${response.status} ${response.statusText}`, errorData);
+            console.error(`API Error from /api/generateStory: ${response.status} ${response.statusText}`, errorData);
             // 返回一個包含錯誤訊息的物件，讓調用者可以處理
             return {
                 greeting: `(系統提示：問候語獲取失敗 - ${response.status})`,
@@ -127,7 +123,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
     } catch (error) {
-        console.error("Error calling /api/generateStory02 from frontend:", error);
+        console.error("Error calling /api/generateStory from frontend:", error);
         // 網路錯誤或其他前端 fetch 相關的錯誤
         return {
             greeting: "(系統提示：網路錯誤，無法獲取問候語)",
@@ -713,7 +709,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // 生成早餐圖片，使用特殊的宇宙主題提示
             try {
-                const imageResponse = await fetch('/api/generateImage02', {
+                const imageResponse = await fetch('/api/generateImage', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
