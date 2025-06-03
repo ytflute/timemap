@@ -1633,10 +1633,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     window.openTab = function(evt, tabName, isInitialLoad = false) {
         console.log(`[openTab] 切換到分頁: ${tabName}, 事件觸發: ${!!evt}, 初始載入: ${isInitialLoad}`);
+        // 如果是觸控事件，阻止預設行為
+        if (evt && evt.type === 'touchstart') {
+            evt.preventDefault();
+        }
         let i, tabcontent, tablinks;
         tabcontent = document.getElementsByClassName("tab-content");
         for (i = 0; i < tabcontent.length; i++) {
-            tabcontent[i].style.display = "none";
+            tabcontent[i].classList.remove('active');
         }
         tablinks = document.getElementsByClassName("tab-button");
         for (i = 0; i < tablinks.length; i++) {
@@ -1644,20 +1648,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         const currentTabDiv = document.getElementById(tabName);
         if (currentTabDiv) {
-            currentTabDiv.style.display = "block";
-             console.log(`[openTab] ${tabName} 設為 display: block`);
+            currentTabDiv.classList.add('active');
+            console.log(`[openTab] ${tabName} 設為 active`);
         } else {
             console.warn(`[openTab] 找不到 ID 為 ${tabName} 的分頁內容元素。`);
         }
-
         const targetButtonId = `tabButton-${tabName}`;
         const targetButton = document.getElementById(targetButtonId);
         if (targetButton) {
             targetButton.classList.add("active");
         } else if (evt && evt.currentTarget) {
-             evt.currentTarget.classList.add("active");
+            evt.currentTarget.classList.add("active");
         }
-
         setTimeout(() => {
             if (tabName === 'HistoryTab') {
                 if (historyLeafletMap && historyMapContainerDiv.offsetParent !== null) {
@@ -1682,19 +1684,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                         globalDateInput.value = `${year}-${month}-${day}`;
                         console.log("[openTab] GlobalTodayMapTab: 日期已重設為今天:", globalDateInput.value);
                     }
-                    console.log("[openTab] 呼叫 loadGlobalTodayMap for GlobalTodayMapTab (日期已重設為今天).");
+                    console.log("[openTab] 呼叫 loadGlobalTodayMap for GlobalTodayMapTab (日期已重設為今天)."
+                    );
                     loadGlobalTodayMap();
                 }
-            } else if (tabName === 'ClockTab') {
-                 if (clockLeafletMap && mapContainerDiv.offsetParent !== null) {
-                    console.log("[openTab] ClockTab is visible, invalidating map size.");
-                    clockLeafletMap.invalidateSize();
-                }
-                if (currentDataIdentifier && auth.currentUser && !isInitialLoad && !initialLoadHandled) {
-                    console.log("[openTab] 手動切換到 ClockTab，準備顯示最後記錄。");
-                    initialLoadHandled = true;
-                    displayLastRecordForCurrentUser();
-                }
+            }
+            if (clockLeafletMap && mapContainerDiv.offsetParent !== null) {
+                console.log("[openTab] ClockTab is visible, invalidating map size.");
+                clockLeafletMap.invalidateSize();
+            }
+            if (currentDataIdentifier && auth.currentUser && !isInitialLoad && !initialLoadHandled) {
+                console.log("[openTab] 手動切換到 ClockTab，準備顯示最後記錄。");
+                initialLoadHandled = true;
+                displayLastRecordForCurrentUser();
             }
         }, 0);
     }
