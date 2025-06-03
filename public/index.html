@@ -94,81 +94,17 @@
     </div>
 
     <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
-
+    <!-- 移除 compat 版 Firebase SDK script 標籤 -->
+    
     <!-- 初始化 Firebase -->
-    <script>
-        // 從 API 獲取配置
-        async function loadFirebaseConfig() {
-            try {
-                const response = await fetch('/api/config');
-                if (!response.ok) {
-                    throw new Error('無法載入 Firebase 配置');
-                }
-                const config = await response.json();
-                return config;
-            } catch (error) {
-                console.error('載入配置失敗:', error);
-                throw error;
-            }
-        }
-
-        // 初始化 Firebase
-        async function initializeFirebase() {
-            try {
-                const firebaseConfig = await loadFirebaseConfig();
-                
-                // 初始化 Firebase
-                const app = firebase.initializeApp(firebaseConfig);
-                
-                // 設定 window.firebaseSDK
-                window.firebaseSDK = {
-                    initializeApp: firebase.initializeApp,
-                    getAuth: firebase.auth,
-                    signInAnonymously: firebase.auth().signInAnonymously,
-                    onAuthStateChanged: firebase.auth().onAuthStateChanged,
-                    signInWithCustomToken: firebase.auth().signInWithCustomToken,
-                    getFirestore: firebase.firestore,
-                    collection: firebase.firestore().collection,
-                    addDoc: (ref, data) => ref.add(data),
-                    query: firebase.firestore().query,
-                    where: firebase.firestore().where,
-                    getDocs: (q) => q.get(),
-                    orderBy: firebase.firestore().orderBy,
-                    serverTimestamp: firebase.firestore.FieldValue.serverTimestamp,
-                    doc: firebase.firestore().doc,
-                    setDoc: (ref, data) => ref.set(data),
-                    getDoc: (ref) => ref.get(),
-                    limit: firebase.firestore().limit,
-                    setLogLevel: firebase.setLogLevel,
-                    getStorage: firebase.storage,
-                    ref: firebase.storage().ref,
-                    uploadBytes: firebase.storage().uploadBytes,
-                    getDownloadURL: firebase.storage().getDownloadURL
-                };
-                
-                // 觸發自定義事件，通知 script.js Firebase 已準備就緒
-                const event = new CustomEvent('firebaseReady', { detail: firebaseConfig });
-                window.dispatchEvent(event);
-            } catch (error) {
-                console.error('Firebase 初始化失敗:', error);
-                alert('Firebase 初始化失敗，請重新載入頁面。');
-            }
-        }
-
-        // 開始初始化
-        initializeFirebase();
-    </script>
-
+    <!-- 移除舊的初始化 script 區塊 -->
+    
     <!-- Leaflet -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
      crossorigin=""></script>
 
-    <!-- 主應用程式腳本 -->
-    <script src="script.js"></script>
+    <!-- 主應用程式腳本（改用 module 版） -->
+    <script type="module" src="/script.js"></script>
 </body>
 </html>
